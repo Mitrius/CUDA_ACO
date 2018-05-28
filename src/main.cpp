@@ -3,6 +3,10 @@
 #include <string>
 #include <cstdio>
 #include <unordered_map>
+#include <cstdlib>
+#include <ctime> 
+#include <cuda.h>
+#include <curand.h>
 #include <mpich-x86_64/mpi.h>
 
 #define INCOMING_DATA 0
@@ -13,6 +17,76 @@ const std::string kFilePath = "./data/facebook_clean_data/";
 const std::string kFeatures[]{"athletes_edges.csv", "company_edges.csv", "government_edges.csv"};
 const unsigned int kAmountOfNodes = 14113;
 
+const float alpha = 0.2;//increase
+const float delta = 0.1;//decrease
+const float gamma = 0.1;//minval
+const int block_size = 10;
+const int iteration_count = 10000;
+
+//GLOBALS
+curandState state;
+char device_graph;
+float device_pheromone;
+
+__global__ void clique_kernel(int startIdx, int *A, int N) {
+	thrust::device_vector<int> C(N/2), B(N/2);
+	for(int i = 0; i < N; i++) if(graph[startIdx][i]) B.push_back(i);
+	C.push_back(startIdx); //END SETUP
+	int current = startIdx;
+	while(B.size()>0){ //MAIN LOOP
+		float norm = 0.0f;
+		for(int i = 0; i < B.size(); i++) norm += device_pheromone[current][B[i]];
+		int chosen = 0;
+		float radom = curand_uniform(&state);
+		for(chosen=0;chosen < B.size() || radom<=0;chosen++,radom-= device_pheromone[current][B[chosen]]/norm); //NEXT VERTEX PICKED
+		for(int i = 0; i < B.size(); i++) if(!graph[chosen][B[i]]) B.erase(B.begin()+i); //REMOVE NON-NEIGHBORING
+		current = chosen;
+		C.push_back(chosen);
+	}
+	for(int i = 0; i < C.size()-1; i++) {
+		device_pheromone[C[i]][C[i+1]]=device_pheromone[C[i]][C[i+1]]+alpha;
+		device_pheromone[C[i+1]][C[i]]=device_pheromone[C[i]][C[i+1]];
+	}
+	A[blockIdx.x*blockDim.x]=C.size();
+}
+__global__ void evaporation_kernel(int N){
+	int start = blockIdx.x *blockDim.x + threadIdx.x;
+	for(int i = 0; i<N; i++) {
+		device_pheromone[start][i] -= delta;
+		if(device_pheromone[start][i]<gamma) device_pheromone[start][i]=gamma;
+	}
+}
+__host__ int anthill(char **graph, int N, int M){
+	srand(time(NULL));
+    curand_init(seed, i, 0, &state);
+	cudaMalloc(&device_graph, N*sizeof(char*));
+	cudaMalloc(&device_pheromone, N*sizeof(float*));
+	void **temp = malloc(N*sizeof(char*)), **temp2 = malloc(N*sizeof(float*));
+	for(int i = 0; i < N; i++) {
+		cudaMalloc(&temp[i], N*sizeof(char));
+		cudaMemcpy(temp[i], graph[i], N, cudaMemcpyHostToDevice);
+		cudaMalloc(&temp2[i], N*sizeof(float));
+		cudaMemset(temp2[i], 0, N);
+	}
+	cudaMemcpy(device_graph, temp, N, cudaMemcpyHostToDevice); //graph initialized
+	cudaMemcpy(device_pheromone, temp2, N, cudaMemcpyHostToDevice); //device_pheromone initialized
+	int *results, *host_results=malloc(block_size*sizeof(int)), max = 0;
+	cudaMalloc(&results, block_size*sizeof(int));
+	for(int i = 0; i < M; i++){
+		clique_kernel<<<block_size,1>>>(rand()%N, results, N);
+		evaporation_kernel<<<N,1>>>(N);
+		cudaMemcpy(host_results, results, N, cudaMemcpyDeviceToHost);
+		for(int i = 0; i < block_size; i++) if(max<host_results[i]) max = host_results[i];
+	}
+	cudaFree(results);
+	for(int i = 0; i < N; i++){
+		cudaFree(temp[i]);
+		cudaFree(temp2[i]);
+	}
+	cudaFree(device_graph);
+	cudaFree(device_pheromone);
+	return max;
+}
 char **createArray()
 {
     char **arr = new char *[kAmountOfNodes];
@@ -36,6 +110,7 @@ void ReceiveAndCalculate()
         MPI_Recv(&(map[0][0]), kAmountOfNodes * kAmountOfNodes, MPI_CHAR, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
         if (status.MPI_TAG == END_PROCESS)
             break;
+		result = anthill(map, kAmountOfNodes, iteration_count);
         MPI_Isend(&result, 1, MPI_INT, 0, INCOMING_DATA, MPI_COMM_WORLD, &request);
     }
     delete[] map;
