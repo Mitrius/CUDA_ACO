@@ -23,12 +23,8 @@ const float gamma = 0.1;//minval
 const int block_size = 10;
 const int iteration_count = 10000;
 
-//GLOBALS
-curandState state;
-char device_graph;
-float device_pheromone;
 
-__global__ void clique_kernel(int startIdx, int *A, int N) {
+__global__ void clique_kernel(int startIdx, int *A, int N, char **device_graph, float **device_pheromone, curandState *state) {
 	thrust::device_vector<int> C(N/2), B(N/2);
 	for(int i = 0; i < N; i++) if(graph[startIdx][i]) B.push_back(i);
 	C.push_back(startIdx); //END SETUP
@@ -49,32 +45,36 @@ __global__ void clique_kernel(int startIdx, int *A, int N) {
 	}
 	A[blockIdx.x*blockDim.x]=C.size();
 }
-__global__ void evaporation_kernel(int N){
-	int start = blockIdx.x *blockDim.x + threadIdx.x;
+__global__ void evaporation_kernel(int N, float **device_pheromone){
+	int row = blockIdx.x *blockDim.x + threadIdx.x;
 	for(int i = 0; i<N; i++) {
-		device_pheromone[start][i] -= delta;
-		if(device_pheromone[start][i]<gamma) device_pheromone[start][i]=gamma;
+		device_pheromone[row][i] -= delta;
+		if(device_pheromone[row][i]<gamma) device_pheromone[row][i]=gamma;
 	}
 }
 __host__ int anthill(char **graph, int N, int M){
+	curandState *state;
+	char **device_graph;
+	float **device_pheromone;
 	srand(time(NULL));
-    curand_init(seed, i, 0, &state);
+	cudaMalloc(&state, sizeof(curandState));
 	cudaMalloc(&device_graph, N*sizeof(char*));
 	cudaMalloc(&device_pheromone, N*sizeof(float*));
+    curand_init(time(NULL), i, 0, state);
 	void **temp = malloc(N*sizeof(char*)), **temp2 = malloc(N*sizeof(float*));
 	for(int i = 0; i < N; i++) {
 		cudaMalloc(&temp[i], N*sizeof(char));
 		cudaMemcpy(temp[i], graph[i], N, cudaMemcpyHostToDevice);
 		cudaMalloc(&temp2[i], N*sizeof(float));
-		cudaMemset(temp2[i], 0, N);
+		cudaMemset(temp2[i], gamma, N);
 	}
 	cudaMemcpy(device_graph, temp, N, cudaMemcpyHostToDevice); //graph initialized
 	cudaMemcpy(device_pheromone, temp2, N, cudaMemcpyHostToDevice); //device_pheromone initialized
 	int *results, *host_results=malloc(block_size*sizeof(int)), max = 0;
 	cudaMalloc(&results, block_size*sizeof(int));
 	for(int i = 0; i < M; i++){
-		clique_kernel<<<block_size,1>>>(rand()%N, results, N);
-		evaporation_kernel<<<N,1>>>(N);
+		clique_kernel<<<block_size,1>>>(rand()%N, results, N, device_graph, device_pheromone, state);
+		evaporation_kernel<<<N,1>>>(N, device_pheromone);
 		cudaMemcpy(host_results, results, N, cudaMemcpyDeviceToHost);
 		for(int i = 0; i < block_size; i++) if(max<host_results[i]) max = host_results[i];
 	}
@@ -83,8 +83,9 @@ __host__ int anthill(char **graph, int N, int M){
 		cudaFree(temp[i]);
 		cudaFree(temp2[i]);
 	}
-	cudaFree(device_graph);
 	cudaFree(device_pheromone);
+	cudaFree(device_graph);
+	cudaFree(state);
 	return max;
 }
 char **createArray()
@@ -105,7 +106,7 @@ void ReceiveAndCalculate()
     MPI_Request request;
     int result = -1;
     MPI_Isend(&result, 1, MPI_INT, 0, GET_DATA, MPI_COMM_WORLD, &request);
-    while (1)
+    for(;;)
     {
         MPI_Recv(&(map[0][0]), kAmountOfNodes * kAmountOfNodes, MPI_CHAR, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
         if (status.MPI_TAG == END_PROCESS)
