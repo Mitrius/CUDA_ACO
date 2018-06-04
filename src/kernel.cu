@@ -3,9 +3,7 @@
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 #include <curand.h>
-#include <thrust/device_vector.h>
-#include <thrust/copy.h>
-#include <thrust/fill.h> 
+#include "vector.h"
 
 const float ACOalpha = 0.2;//increase
 const float ACOdelta = 0.1;//decrease
@@ -16,7 +14,7 @@ __global__ void clique_kernel(int *A, int N, char **device_graph, float **device
 	int id = blockIdx.x*blockDim.x;
     curand_init(1342, id, 0, &states[id]);
 	int startIdx = curand_uniform(&states[id])*N;
-	thrust::device_vector<int> C(N/2), B(N/2);
+	actual_device_vector<int> C(N/2), B(N/2);
 	for(int i = 0; i < N; i++) if(device_graph[startIdx][i]) B.push_back(i);
 	C.push_back(startIdx); //END SETUP
 	int current = startIdx;
@@ -26,7 +24,7 @@ __global__ void clique_kernel(int *A, int N, char **device_graph, float **device
 		int chosen = 0;
 		float radom = curand_uniform(&states[id]);
 		for(chosen=0;chosen < B.size() || radom<=0;chosen++,radom-= device_pheromone[current][B[chosen]]/norm); //NEXT VERTEX PICKED
-		for(int i = 0; i < B.size(); i++) if(!device_graph[chosen][B[i]]) B.erase(B.begin()+i); //REMOVE NON-NEIGHBORING
+		for(int i = 0; i < B.size(); i++) if(!device_graph[chosen][B[i]]) B.erase(i); //REMOVE NON-NEIGHBORING
 		current = chosen;
 		C.push_back(chosen);
 	}
