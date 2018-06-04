@@ -2,15 +2,17 @@ template<class T>
 class actual_device_vector {
 private:
 	T *contents = NULL;
-	size_t idx = 0, size=0;
+	size_t _idx, _size;
 public:
 	actual_device_vector(size_t n){
 		contents = new T[n];
-		this->size=n;
+		_size=n;
+		_idx=0;
 	}
 	actual_device_vector(){
 		contents = new T[10];
-		size=10;
+		_size=10;
+		_idx=0;
 	}
 	~actual_device_vector(){
 		delete[] contents;
