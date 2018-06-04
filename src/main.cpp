@@ -13,6 +13,7 @@
 const std::string kFilePath = "./data/facebook_clean_data/";
 const std::string kFeatures[]{"athletes_edges.csv", "company_edges.csv", "government_edges.csv"};
 const unsigned int kAmountOfNodes = 14113;
+const int iteration_count = 10000;
 
 char **createArray()
 {
