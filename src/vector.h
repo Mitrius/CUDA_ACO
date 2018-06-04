@@ -7,20 +7,20 @@ private:
 	size_t _idx;
 	size_t _size;
 public:
-	actual_device_vector(size_t n){
+	__device__ actual_device_vector(size_t n){
 		contents = new T[n];
 		_size=n;
 		_idx=0;
 	}
-	actual_device_vector(){
+	__device__ actual_device_vector(){
 		contents = new T[10];
 		_size=10;
 		_idx=0;
 	}
-	~actual_device_vector(){
+	__device__ ~actual_device_vector(){
 		delete[] contents;
 	}
-	void push_back(T x){
+	__device__ void push_back(T x){
 		contents[_idx++]=x;
 		if(_idx==_size){
 			T *temp = new T[_size*2];
@@ -30,7 +30,7 @@ public:
 			_size *= 2;
 		}
 	}
-	void erase(size_t n){
+	__device__ void erase(size_t n){
 		if(n==_idx-1) _idx--;
 		else if (_idx==0 || n>_idx) return;
 		else contents[n]=contents[--_idx];
@@ -42,11 +42,11 @@ public:
 			_size /= 2;
 		}
 	}
-	T& operator[](size_t n){
+	__device__ T& operator[](size_t n){
 		return contents[n];
 	}
-	int size(){
+	__device__ int size(){
 		return _idx;
 	}
-}
+};
 #endif
