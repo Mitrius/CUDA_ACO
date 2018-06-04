@@ -31,8 +31,8 @@ public:
 		}
 	}
 	__device__ void erase(size_t n){
-		if(n==_idx-1) _idx--;
-		else if (_idx==0 || n>_idx) return;
+		if (_idx==0 || n>_idx) return;
+		else if(n==_idx-1) _idx--;
 		else contents[n]=contents[--_idx];
 		if(_idx<_size/2) {
 			T *temp = new T[_size/2];

@@ -59,6 +59,7 @@ extern "C" int anthill(char **graph, int N, int M){
 	cudaMemcpy(device_pheromone, temp2, N, cudaMemcpyHostToDevice); //device_pheromone initialized
 	int *results, *host_results=(int*)malloc(block_size*sizeof(int)), max = 0;
 	cudaMalloc(&results, block_size*sizeof(int));
+	cudaMemset(results, 0, block_size);
 	for(int i = 0; i < M; i++){
 		clique_kernel<<<block_size,1>>>(results, N, device_graph, device_pheromone, states);
 		evaporation_kernel<<<N,1>>>(N, device_pheromone);
