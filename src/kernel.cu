@@ -62,7 +62,7 @@ extern "C" int anthill(char **graph, int N, int M){
 	int *results, *host_results=(int*)malloc(block_size*sizeof(int)), max = 0;
 	cudaMalloc(&results, block_size*sizeof(int));
 	for(int i = 0; i < M; i++){
-		clique_kernel<<<block_size,1>>>(results, N, device_graph, device_pheromone, state);
+		clique_kernel<<<block_size,1>>>(results, N, device_graph, device_pheromone, states);
 		evaporation_kernel<<<N,1>>>(N, device_pheromone);
 		cudaMemcpy(host_results, results, N, cudaMemcpyDeviceToHost);
 		for(int i = 0; i < block_size; i++) if(max<host_results[i]) max = host_results[i];
@@ -74,6 +74,6 @@ extern "C" int anthill(char **graph, int N, int M){
 	}
 	cudaFree(device_pheromone);
 	cudaFree(device_graph);
-	cudaFree(state);
+	cudaFree(states);
 	return max;
 }
