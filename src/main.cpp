@@ -13,7 +13,7 @@
 const std::string kFilePath = "./data/facebook_clean_data/";
 const std::string kFeatures[]{"athletes_edges.csv", "company_edges.csv", "government_edges.csv"};
 const unsigned int kAmountOfNodes = 14113;
-const int iteration_count = 10000;
+const int iteration_count = 1;
 
 extern "C" int anthill(char **graph, int N, int M);
 

@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <cstdio>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
@@ -41,36 +42,25 @@ __global__ void evaporation_kernel(int N, float **device_pheromone){
 		if(device_pheromone[row][i]<ACOgamma) device_pheromone[row][i]=ACOgamma;
 	}
 }
+
 extern "C" int anthill(char **graph, int N, int M){
 	curandState *states;
 	char **device_graph;
 	float **device_pheromone;
 	cudaMalloc(&states, N*sizeof(curandState));
-	cudaMalloc(&device_graph, N*sizeof(char*));
-	cudaMalloc(&device_pheromone, N*sizeof(float*));
-	void **temp = (void**)malloc(N*sizeof(char*)), **temp2 = (void**)malloc(N*sizeof(float*));
-	for(int i = 0; i < N; i++) {
-		cudaMalloc(&temp[i], N*sizeof(char));
-		cudaMemcpy(temp[i], graph[i], N, cudaMemcpyHostToDevice);
-		cudaMalloc(&temp2[i], N*sizeof(float));
-		cudaMemset(temp2[i], ACOgamma, N);
-	}
-	cudaMemcpy(device_graph, temp, N, cudaMemcpyHostToDevice); //graph initialized
-	cudaMemcpy(device_pheromone, temp2, N, cudaMemcpyHostToDevice); //device_pheromone initialized
-	int *results, *host_results=(int*)malloc(block_size*sizeof(int)), max = 0;
+	cudaMalloc(&device_graph, N*N*sizeof(char));
+	cudaMalloc(&device_pheromone, N*N*sizeof(float));
+	cudaMemcpy(device_graph, graph, N*N*sizeof(char), cudaMemcpyHostToDevice); //graph initialized
+	int *results, *host_results=new int[block_size], max = 0;
 	cudaMalloc(&results, block_size*sizeof(int));
-	cudaMemset(results, 0, block_size);
 	for(int i = 0; i < M; i++){
-		clique_kernel<<<block_size,1>>>(results, N, device_graph, device_pheromone, states);
 		evaporation_kernel<<<N,1>>>(N, device_pheromone);
-		cudaMemcpy(host_results, results, N, cudaMemcpyDeviceToHost);
+		clique_kernel<<<block_size,1>>>(results, N, device_graph, device_pheromone, states);
+		printf("%s ", cudaGetErrorName(cudaMemcpy(host_results, results, block_size*sizeof(int), cudaMemcpyDeviceToHost)));
 		for(int i = 0; i < block_size; i++) if(max<host_results[i]) max = host_results[i];
 	}
+	delete[] host_results;
 	cudaFree(results);
-	for(int i = 0; i < N; i++){
-		cudaFree(temp[i]);
-		cudaFree(temp2[i]);
-	}
 	cudaFree(device_pheromone);
 	cudaFree(device_graph);
 	cudaFree(states);
