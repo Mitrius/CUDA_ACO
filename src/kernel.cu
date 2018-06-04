@@ -1,11 +1,15 @@
 #include <cstdlib>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <curand_kernel.h>
 #include <curand.h>
+#include <thrust/device_vector.h>
+#include <thrust/copy.h>
+#include <thrust/fill.h> 
 
-const float alpha = 0.2;//increase
-const float delta = 0.1;//decrease
-const float gamma = 0.1;//minval
+const float ACOalpha = 0.2;//increase
+const float ACOdelta = 0.1;//decrease
+const float ACOgamma = 0.1;//minval
 const int block_size = 10;
 const int iteration_count = 10000;
 
@@ -26,7 +30,7 @@ __global__ void clique_kernel(int *A, int N, char **device_graph, float **device
 		C.push_back(chosen);
 	}
 	for(int i = 0; i < C.size()-1; i++) {
-		device_pheromone[C[i]][C[i+1]]=device_pheromone[C[i]][C[i+1]]+alpha;
+		device_pheromone[C[i]][C[i+1]]=device_pheromone[C[i]][C[i+1]]+ACOalpha;
 		device_pheromone[C[i+1]][C[i]]=device_pheromone[C[i]][C[i+1]];
 	}
 	A[blockIdx.x*blockDim.x]=C.size();
@@ -34,8 +38,8 @@ __global__ void clique_kernel(int *A, int N, char **device_graph, float **device
 __global__ void evaporation_kernel(int N, float **device_pheromone){
 	int row = blockIdx.x *blockDim.x + threadIdx.x;
 	for(int i = 0; i<N; i++) {
-		device_pheromone[row][i] -= delta;
-		if(device_pheromone[row][i]<gamma) device_pheromone[row][i]=gamma;
+		device_pheromone[row][i] -= ACOdelta;
+		if(device_pheromone[row][i]<ACOgamma) device_pheromone[row][i]=ACOgamma;
 	}
 }
 extern "C" int anthill(char **graph, int N, int M){
@@ -51,7 +55,7 @@ extern "C" int anthill(char **graph, int N, int M){
 		cudaMalloc(&temp[i], N*sizeof(char));
 		cudaMemcpy(temp[i], graph[i], N, cudaMemcpyHostToDevice);
 		cudaMalloc(&temp2[i], N*sizeof(float));
-		cudaMemset(temp2[i], gamma, N);
+		cudaMemset(temp2[i], ACOgamma, N);
 	}
 	cudaMemcpy(device_graph, temp, N, cudaMemcpyHostToDevice); //graph initialized
 	cudaMemcpy(device_pheromone, temp2, N, cudaMemcpyHostToDevice); //device_pheromone initialized
