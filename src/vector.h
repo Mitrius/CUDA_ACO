@@ -1,8 +1,11 @@
+#ifndef ACTUAL_DEVICE_VECTOR
+#define ACTUAL_DEVICE_VECTOR
 template<class T>
 class actual_device_vector {
 private:
 	T *contents;
-	size_t _idx, _size;
+	size_t _idx;
+	size_t _size;
 public:
 	actual_device_vector(size_t n){
 		contents = new T[n];
@@ -20,8 +23,8 @@ public:
 	void push_back(T x){
 		contents[_idx++]=x;
 		if(_idx==_size){
-			T *temp = new T[size*2];
-			for(size_t i = 0; i < size; i++) temp[i]=contents[i];
+			T *temp = new T[_size*2];
+			for(size_t i = 0; i < _size; i++) temp[i]=contents[i];
 			delete[] contents;
 			contents = temp;
 			_size *= 2;
@@ -31,8 +34,8 @@ public:
 		if(n==_idx-1) _idx--;
 		else if (_idx==0 || n>_idx) return;
 		else contents[n]=contents[--_idx];
-		if(_idx<size/2) {
-			T *temp = new T[size/2];
+		if(_idx<_size/2) {
+			T *temp = new T[_size/2];
 			for(size_t i = 0; i < _idx; i++) temp[i]=contents[i];
 			delete[] contents;
 			contents = temp;
@@ -46,3 +49,4 @@ public:
 		return _idx;
 	}
 }
+#endif
