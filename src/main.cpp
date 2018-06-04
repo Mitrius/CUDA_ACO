@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <unordered_map>
 #include <cstdlib>
-#include <mpich-x86_64/mpi.h>
+#include <mpi.h>
 
 #define INCOMING_DATA 0
 #define END_PROCESS 2
