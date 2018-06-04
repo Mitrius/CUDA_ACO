@@ -15,6 +15,8 @@ const std::string kFeatures[]{"athletes_edges.csv", "company_edges.csv", "govern
 const unsigned int kAmountOfNodes = 14113;
 const int iteration_count = 10000;
 
+int anthill(char **graph, int N, int M);
+
 char **createArray()
 {
     char **arr = new char *[kAmountOfNodes];
