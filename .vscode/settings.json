@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.cu": "cpp",
+        "array": "cpp",
+        "string_view": "cpp"
+    }
+}
