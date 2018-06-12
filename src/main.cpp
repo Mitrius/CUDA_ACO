@@ -15,7 +15,7 @@ const std::string kFeatures[]{"athletes_edges.csv", "company_edges.csv", "govern
 const unsigned short kAmountOfNodes = 14113;
 const int iteration_count = 100;
 
-//extern "C" int anthill(unsigned short *graph, int N, int M);
+extern "C" int anthill(unsigned short *graph, int N, int M);
 
 void ReceiveAndCalculate()
 {
@@ -38,7 +38,7 @@ void ReceiveAndCalculate()
             std::cout << " process received order to commit sudoku\n";
             break;
         }
-        //result = anthill(edges, kAmountOfNodes, iteration_count);
+        result = anthill(edges, kAmountOfNodes, iteration_count);
         MPI_Isend(&result, 1, MPI_UNSIGNED_SHORT, 0, INCOMING_DATA, MPI_COMM_WORLD, &request);
     }
     delete[] edges;

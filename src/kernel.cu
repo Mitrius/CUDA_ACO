@@ -34,7 +34,7 @@ __global__ void clique_kernel(size_t *A, size_t N, char *device_graph, unsigned 
 		size_t chosen = 0;
 		float radom = (1-curand_uniform(&states[id]));
 		while(chosen < B.size() && radom<=0) radom-= tmat(device_pheromone, current, B[chosen++], N)/norm; //NEXT VERTEX PICKED
-		for(size_t i = 0; i < B.size(); i++) if(i==chosen || !tmat(device_graph, chosen, B[i]), N) B.erase(i); //REMOVE NON-NEIGHBORING
+		for(size_t i = 0; i < B.size(); i++) if(i==chosen || !tmat(device_graph, chosen, B[i], N)) B.erase(i); //REMOVE NON-NEIGHBORING
 		current = chosen;
 		C.push_back(chosen);
 	}
@@ -47,7 +47,7 @@ __global__ void evaporation_kernel(size_t N, unsigned short *device_pheromone){
 }
 __global__ void parse_kernel(unsigned short *edges, char *graph, size_t N){
 	size_t id = blockIdx.x *blockDim.x + threadIdx.x;
-	if(id<N) tmat(graph, edges[id*2], edges[id*2+1], N);
+	if(id<N) tmat(graph, edges[id*2], edges[id*2+1], N)=1;
 }
 extern "C" int anthill(unsigned short *edges, size_t N, size_t M){
 	curandState *states;
@@ -60,7 +60,7 @@ extern "C" int anthill(unsigned short *edges, size_t N, size_t M){
 	
 	cudaMalloc(&device_graph, N*N*sizeof(char));
 	cudaMalloc(&device_pheromone, N*N*sizeof(unsigned short));
-	parse_kernel<<<N/thread_size,thread_size>>>(edges, device_graph, N);
+	parse_kernel<<<N/thread_size,thread_size>>>(device_edges, device_graph, N);
 	
 	cudaMalloc(&results, block_size*thread_size*sizeof(size_t));
 	for(size_t i = 0; i < M; i++){
