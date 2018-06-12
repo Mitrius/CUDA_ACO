@@ -1,5 +1,4 @@
 #include <iostream>
-#include <fstream>
 #include <string>
 #include <cstdio>
 #include <unordered_map>
@@ -12,38 +11,36 @@
 
 const std::string kFilePath = "./data/facebook_clean_data/";
 const std::string kFeatures[]{"athletes_edges.csv", "company_edges.csv", "government_edges.csv"};
-const unsigned int kAmountOfNodes = 14113;
+const unsigned short kAmountOfNodes = 14113;
 const int iteration_count = 100;
 
-extern "C" int anthill(char **graph, int N, int M);
+//extern "C" int anthill(short *graph, int N, int M);
 
-char **createArray()
-{
-    char **arr = new char *[kAmountOfNodes];
-    int size = kAmountOfNodes * kAmountOfNodes;
-    arr[0] = new char[size];
-    for (int j = 1; j < kAmountOfNodes; j++)
-    {
-        arr[j] = &arr[0][j * kAmountOfNodes];
-    }
-    return arr;
-}
 void ReceiveAndCalculate()
 {
-    char **map = createArray();
+
     MPI_Status status;
     MPI_Request request;
     int result = -1;
+    short *edges = new short[kAmountOfNodes * kAmountOfNodes];
+    int message_size;
+
     MPI_Isend(&result, 1, MPI_INT, 0, GET_DATA, MPI_COMM_WORLD, &request);
     for (;;)
     {
-        MPI_Recv(&(map[0][0]), kAmountOfNodes * kAmountOfNodes, MPI_CHAR, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        MPI_Probe(0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        MPI_Get_count(&status, MPI_INT, &message_size);
+        MPI_Recv(edges, message_size, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+
         if (status.MPI_TAG == END_PROCESS)
+        {
+            std::cout << " process received order to commit sudoku\n";
             break;
-        result = anthill(map, kAmountOfNodes, iteration_count);
+        }
+        result = 0; //anthill(edges, kAmountOfNodes, iteration_count);
         MPI_Isend(&result, 1, MPI_INT, 0, INCOMING_DATA, MPI_COMM_WORLD, &request);
     }
-    delete[] map;
+    delete[] edges;
 }
 void LoadCSVs(int process_count)
 {
@@ -51,35 +48,42 @@ void LoadCSVs(int process_count)
     std::unordered_map<int, std::string> ongoming_comps;
 
     char trash;
-    char **map = createArray();
 
-    int a, b;
+    int index = 0;
     int result = -1;
 
     MPI_Request request;
     MPI_Status status;
-    std::cout << (sizeof(map[0][0]) * (kAmountOfNodes * kAmountOfNodes)) / (1024 * 1024) << '\n';
+    FILE *f_handle;
+
+    short *edges = new short[kAmountOfNodes * kAmountOfNodes];
+
     for (std::string file_name : kFeatures)
     {
-        std::ifstream file_in(kFilePath + file_name);
-        if (file_in.is_open())
+        index = 0;
+        MPI_Irecv(&result, 1, MPI_INTEGER, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &request);
+
+        f_handle = fopen((kFilePath + file_name).c_str(), "rt");
+        while (!feof(f_handle))
         {
-            MPI_Irecv(&result, 1, MPI_INTEGER, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &request);
-            while (file_in >> a >> trash >> b && trash == ',')
-                map[a][b] = map[b][a] = 1;
-            MPI_Wait(&request, &status);
-            if (status.MPI_TAG == INCOMING_DATA)
-            {
-                std::cout << "file: " << ongoming_comps[status.MPI_SOURCE]
-                          << " clique size: " << result << '\n';
-                ongoming_comps.erase(status.MPI_SOURCE);
-            }
-            MPI_Isend(&(map[0][0]), kAmountOfNodes * kAmountOfNodes, MPI_CHAR, status.MPI_SOURCE, INCOMING_DATA, MPI_COMM_WORLD, &request);
-            std::cout << "Send data from file: " + file_name + '\n';
-            ongoming_comps[status.MPI_SOURCE] = file_name;
-            file_in.close();
-            std::fill(&map[0][0], &map[0][0] + sizeof(map), 0);
+            fscanf(f_handle, "%d,%d\n", &edges[index], &edges[index + 1]);
+            index += 2;
         }
+        fclose(f_handle);
+
+        MPI_Wait(&request, &status);
+
+        if (status.MPI_TAG == INCOMING_DATA)
+        {
+            std::cout << "file: " << ongoming_comps[status.MPI_SOURCE]
+                      << " clique size: " << result << '\n';
+            ongoming_comps.erase(status.MPI_SOURCE);
+        }
+
+        MPI_Isend(edges, index, MPI_INT, status.MPI_SOURCE, INCOMING_DATA, MPI_COMM_WORLD, &request);
+
+        std::cout << "Send data from file: " + file_name + '\n';
+        ongoming_comps[status.MPI_SOURCE] = file_name;
     }
     while (!ongoming_comps.empty())
     {
@@ -89,9 +93,13 @@ void LoadCSVs(int process_count)
                   << " clique size: " << result << '\n';
         ongoming_comps.erase(status.MPI_SOURCE);
     }
-    for (int i = 0; i < process_count; i++)
-        MPI_Isend(&(map[0][0]), kAmountOfNodes * kAmountOfNodes, MPI_CHAR, i, END_PROCESS, MPI_COMM_WORLD, &request);
-    delete[] map;
+    for (int i = 1; i < process_count; i++)
+    {
+        MPI_Isend(&result, 1, MPI_INT, i, END_PROCESS, MPI_COMM_WORLD, &request);
+        std::cout << "told process with id: " << i << " to kill himself\n";
+    }
+
+    delete[] edges;
 }
 int main(int argc, char **argv)
 {
