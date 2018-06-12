@@ -11,7 +11,7 @@ const unsigned short ACOalpha = 2;//increase
 const unsigned short ACOdelta = 1;//decrease
 const unsigned short ACOgamma = 1;//minval
 const int block_size = 10;
-const int thread_size = 1;
+const int thread_size = 32;
 
 __device__ unsigned short& tmat(unsigned short *matrix, size_t x, size_t y, size_t N){
 	return x>y ? matrix[y*N+x] : matrix[x*N+y];
@@ -22,7 +22,7 @@ __device__ char& tmat(char *matrix, size_t x, size_t y, size_t N){
 
 __global__ void clique_kernel(size_t *A, size_t N, char *device_graph, unsigned short *device_pheromone, curandState *states, unsigned int seed) {
 	size_t id = blockIdx.x*blockDim.x+threadIdx.x;
-	actual_device_vector<size_t > C(N/4), B(N/4);
+	actual_device_vector<size_t > B, C;
     curand_init(seed*id, id, 0, &states[id]);
 	size_t  startIdx = (1-curand_uniform(&states[id]))*N;
 	size_t current = startIdx;
