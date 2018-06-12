@@ -10,11 +10,12 @@
 #define GET_DATA 1
 
 const std::string kFilePath = "./data/facebook_clean_data/";
-const std::string kFeatures[]{"athletes_edges.csv", "company_edges.csv", "government_edges.csv"};
+const std::string kFeatures[]{"athletes_edges.csv", "company_edges.csv", "government_edges.csv"
+,"politician_edges.csv","public_figure_edges.csv", "tvshow_edges.csv"};
 const unsigned short kAmountOfNodes = 14113;
 const int iteration_count = 100;
 
-//extern "C" int anthill(short *graph, int N, int M);
+extern "C" int anthill(short *graph, int N, int M);
 
 void ReceiveAndCalculate()
 {
@@ -37,7 +38,7 @@ void ReceiveAndCalculate()
             std::cout << " process received order to commit sudoku\n";
             break;
         }
-        result = 0; //anthill(edges, kAmountOfNodes, iteration_count);
+        result = anthill(edges, kAmountOfNodes, iteration_count);
         MPI_Isend(&result, 1, MPI_INT, 0, INCOMING_DATA, MPI_COMM_WORLD, &request);
     }
     delete[] edges;
