@@ -51,9 +51,19 @@ extern "C" int anthill(char **graph, size_t N, size_t M){
 	unsigned short *device_pheromone;
 	size_t *results, *host_results=new size_t[block_size*thread_size], max = 0;
 	cudaMalloc(&states, block_size*thread_size*sizeof(curandState));
-	cudaMalloc(&device_graph, N*N*sizeof(char));
-	cudaMalloc(&device_pheromone, N*N*sizeof(unsigned short));
-	cudaMemcpy(device_graph, graph[0], N*N*sizeof(char), cudaMemcpyHostToDevice); //graph initialized
+	
+	cudaMalloc(&device_graph, N*sizeof(char*));
+	cudaMalloc(&device_pheromone, N*sizeof(unsigned short*));
+	void **temp = (void**)malloc(N*sizeof(char*)), **temp2 = (void**)malloc(N*sizeof(unsigned short*));
+	for(int i = 0; i < N; i++) {
+		cudaMalloc(&temp[i], (i+1)*sizeof(char));
+		cudaMemcpy(temp[i], graph[i], (i+1), cudaMemcpyHostToDevice);
+		cudaMalloc(&temp2[i], (i+1)*sizeof(unsigned short));
+		cudaMemset(temp2[i], 0, (i+1));
+	}
+	cudaMemcpy(device_graph, temp, N, cudaMemcpyHostToDevice); //graph initialized
+	cudaMemcpy(device_pheromone, temp2, N, cudaMemcpyHostToDevice); //device_pheromone initialized
+	
 	cudaMalloc(&results, block_size*thread_size*sizeof(size_t));
 	for(size_t i = 0; i < M; i++){
 		evaporation_kernel<<<N*N/thread_size,thread_size>>>(N, device_pheromone, N*N);
@@ -63,6 +73,12 @@ extern "C" int anthill(char **graph, size_t N, size_t M){
 	}
 	delete[] host_results;
 	cudaFree(results);
+	
+	for(int i = 0; i < N; i++){
+		cudaFree(temp[i]);
+		cudaFree(temp2[i]);
+	}
+	
 	cudaFree(device_pheromone);
 	cudaFree(device_graph);
 	cudaFree(states);
