@@ -22,12 +22,12 @@ __device__ char& tmat(char *matrix, size_t x, size_t y, size_t N){
 
 __global__ void clique_kernel(size_t *A, size_t N, char *device_graph, unsigned short *device_pheromone, curandState *states, unsigned int seed) {
 	size_t id = blockIdx.x*blockDim.x+threadIdx.x;
+	actual_device_vector<size_t > C(N/4), B(N/4);
     curand_init(seed*id, id, 0, &states[id]);
 	size_t  startIdx = (1-curand_uniform(&states[id]))*N;
-	actual_device_vector<size_t > C(N/2), B(N/2);
+	size_t current = startIdx;
 	for(size_t i = 0; i < N; i++) if(i!=startIdx && tmat(device_graph, startIdx, i, N)) B.push_back(i);
 	C.push_back(startIdx); //END SETUP
-	size_t current = startIdx;
 	while(B.size()>0){ //MAIN LOOP
 		unsigned int norm = 0;
 		for(size_t i = 0; i < B.size(); norm += tmat(device_pheromone, current, B[i++], N));
@@ -41,10 +41,9 @@ __global__ void clique_kernel(size_t *A, size_t N, char *device_graph, unsigned 
 	for(size_t i = 0; i < C.size()-1; i++) tmat(device_pheromone, C[i], C[i+1], N)=tmat(device_pheromone, C[i], C[i+1], N)+ACOalpha;
 	A[id]=C.size();
 }
-__global__ void evaporation_kernel(size_t N, short *device_pheromone){
-	size_t row = blockIdx.x *blockDim.x + threadIdx.x*thread_size;
-	for(size_t i = 0; i<N/thread_size; i++)
-		tmat(device_pheromone, row, i, N) = tmat(device_pheromone, row, i, N)<= ACOgamma+ACOdelta ? ACOgamma : tmat(device_pheromone, row, i, N)-ACOdelta;
+__global__ void evaporation_kernel(size_t N, unsigned short *device_pheromone, unsigned int max){
+	size_t id = blockIdx.x *blockDim.x + threadIdx.x;
+	if(id<max) device_pheromone[id] = device_pheromone[id]<= ACOgamma+ACOdelta ? ACOgamma : device_pheromone[id]-ACOdelta;
 }
 extern "C" int anthill(char **graph, size_t N, size_t M){
 	curandState *states;
@@ -57,7 +56,7 @@ extern "C" int anthill(char **graph, size_t N, size_t M){
 	cudaMemcpy(device_graph, graph[0], N*N*sizeof(char), cudaMemcpyHostToDevice); //graph initialized
 	cudaMalloc(&results, block_size*thread_size*sizeof(size_t));
 	for(size_t i = 0; i < M; i++){
-		evaporation_kernel<<<N,thread_size>>>(N, device_pheromone);
+		evaporation_kernel<<<N*N/thread_size,thread_size>>>(N, device_pheromone, N*N);
 		clique_kernel<<<block_size,thread_size>>>(results, N, device_graph, device_pheromone, states, (unsigned int)time(NULL));
 		cudaMemcpy(host_results, results, block_size*thread_size*sizeof(size_t), cudaMemcpyDeviceToHost);
 		for(size_t j = 0; j < block_size; j++) if(max<host_results[j]) max = host_results[j];
