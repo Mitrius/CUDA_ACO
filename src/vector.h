@@ -34,13 +34,6 @@ public:
 		if (_idx==0 || n>_idx) return;
 		else if(n==_idx-1) _idx--;
 		else contents[n]=contents[--_idx];
-		if(_idx<_size/2) {
-			T *temp = new T[_size/2];
-			for(size_t i = 0; i < _idx; i++) temp[i]=contents[i];
-			delete[] contents;
-			contents = temp;
-			_size /= 2;
-		}
 	}
 	__device__ T& operator[](size_t n){
 		return contents[n];
